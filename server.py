@@ -41,6 +41,19 @@ def extract_path(request_data):
     else:
         print("Invalid HTTP request")
 
+def secure_path(path):
+    l=path.split("/")
+    s=0
+    for each in l:
+        if each=="..":
+            s=s-1
+        elif each=='':
+            s=s
+        else:
+            s=s+1
+        if s<0:
+            return False
+    return True
 
 
 def get_contenttype(path):
@@ -66,19 +79,21 @@ class MyWebServer(socketserver.BaseRequestHandler):
             self.request.sendall(error_response)
         else:
             try:
-                if os.path.isdir(path):
-                    # Raise an exception for directory requests
-                    raise IsADirectoryError
-
-                with open(path.replace("/..",""), "rb") as file:
-                    file_content = file.read()
-                response = (
-                b"HTTP/1.1 200 OK\r\n"
-                b"Content-Length: " + str(len(file_content)).encode() + b"\r\n"
-                b"Content-Type: " + content_type.encode() + b"\r\n"
-                b"\r\n" + file_content
-                )
-                self.request.sendall(response)              
+            
+                if secure_path(request_path):
+                    if os.path.isdir(path):
+                        raise IsADirectoryError
+                    with open(path, "rb") as file:
+                        file_content = file.read()
+                        response = (
+                        b"HTTP/1.1 200 OK\r\n"
+                        b"Content-Length: " + str(len(file_content)).encode() + b"\r\n"
+                        b"Content-Type: " + content_type.encode() + b"\r\n"
+                        b"\r\n" + file_content
+                        )
+                    self.request.sendall(response)     
+                else:
+                    raise FileNotFoundError
                 
             except FileNotFoundError:
                 # Handle the case when the file is not found
@@ -91,8 +106,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 #print(path[-1].isalpha())
                 if  path[-1].isalpha():
                     parts = path.split("/")
-                    ans=parts[-1]
-                    # Get the substring after the last "/"
+                    ans=parts[-1]# Get the name of the file after the last "/"
                     redirect_url = "/"+ans+"/"
                     error_response = (
                         b"HTTP/1.1 301 Found\r\n"
@@ -104,7 +118,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                     self.request.sendall(error_response)         
                 else :
                     path=path+"index.html"
-                    with open(path.replace("/..",""), "rb") as file:
+                    with open(path, "rb") as file:
                         file_content = file.read()
                     
                     response = (b"HTTP/1.1 200 OK\r\n"        
